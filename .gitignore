@@ -1,0 +1,7 @@
+.metadata
+/bin
+/.settings
+/doc
+.classpath
+.project
+*.cld
