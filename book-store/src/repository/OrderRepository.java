@@ -3,6 +3,7 @@ package repository;
 import java.util.ArrayList;
 import java.util.List;
 
+import exception.OrderException;
 import vo.Order;
 
 public class OrderRepository {
@@ -18,16 +19,15 @@ public class OrderRepository {
 	 * @param order 주문정보
 	 */
 	public void insertOrder(Order order) {
-		
+		db.add(order);
 	}
 	
 	/**
-	 * 지정된 사용자의 주문내역을 반환한다.
-	 * @param userId 사용자 아이디
+	 * 모든 주문내역을 반환한다.
 	 * @return 주문내역
 	 */
-	public List<Order> getOrdersByUserId(String userId) {
-		return null;
+	public List<Order> getAllOrders() {
+		return db;
 	}
 	
 	

@@ -1,8 +1,14 @@
 package service;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import exception.BookException;
+import exception.UserException;
 import repository.BookRepository;
+import repository.OrderRepository;
 import repository.UserRepository;
 import vo.Book;
 import vo.Order;
@@ -12,6 +18,7 @@ public class BookStoreService {
 
 	private BookRepository bookRepository = new BookRepository();
 	private UserRepository userRepository = new UserRepository();
+	private OrderRepository orderRepository = new OrderRepository();
 	private User loginedUser = null;
 	
 	/**
@@ -19,7 +26,7 @@ public class BookStoreService {
 	 * @return 도서 목록
 	 */
 	public List<Book> getAllBookList() {
-		return null;
+		return bookRepository.getAllBooks();
 	}
 	
 	/**
@@ -28,7 +35,14 @@ public class BookStoreService {
 	 * @return 도서 목록
 	 */
 	public List<Book> searchBooksByCategory(String category) {
-		return null;
+		List<Book> result = new ArrayList<>();
+		List<Book> books = bookRepository.getAllBooks();
+		for(Book book : books) {
+			if(book.getCategory().equals(category)) {
+				result.add(book);
+			}
+		}
+		return result;
 	}
 	
 	/**
@@ -37,7 +51,15 @@ public class BookStoreService {
 	 * @return 도서 목록
 	 */
 	public List<Book> searchBooksByTitle(String title) {
-		return null;
+		
+		List<Book> result = new ArrayList<>();
+		List<Book> books = bookRepository.getAllBooks();
+		for (Book book : books) {
+			if(book.getTitle().contains(title)) {
+				result.add(book);
+			}
+		}
+		return result;
 	}
 	
 	/**
@@ -47,7 +69,16 @@ public class BookStoreService {
 	 * @return 도서 목록
 	 */
 	public List<Book> searchBooksByPrice(int minPrice, int maxPrice) {
-		return null;
+		
+		List<Book> books = new ArrayList<>();
+		List<Book> result = bookRepository.getAllBooks();
+		
+		for(Book book : books) {
+			if(book.getPrice() >= minPrice && book.getPrice() <= maxPrice) {
+				result.add(book);
+			}
+		}
+		return result;
 	}
 	
 	/**
@@ -73,7 +104,7 @@ public class BookStoreService {
 	 * @param user 새 사용자
 	 */
 	public void addNewUser(User user) {
-		
+		userRepository.insertUser(user);
 	}
 	
 	/**
@@ -82,14 +113,21 @@ public class BookStoreService {
 	 * @param password 비밀번호
 	 */
 	public void login(String id, String password) {
-		
+		User user = userRepository.getUserById(id);
+		if(user == null) {
+			throw new UserException("일치하는 아이디가 없습니다.");
+		} 
+		if(!user.getPassword().equals(password)) {
+			throw new UserException("비밀번호가 맞지 않습니다.");
+		}
+		this.loginedUser = user;
 	}
 	
 	/**
 	 * 로그인된 사용자 정보를 삭제한다.
 	 */
 	public void logout() {
-		
+		this.loginedUser = null;
 	}
 	
 	/**
@@ -97,7 +135,7 @@ public class BookStoreService {
 	 * @return 로그인된 사용자정보가 존재하면 true를 반환한다.
 	 */
 	public boolean isLogined() {
-		return false;
+		return this.loginedUser == null ? false : true;
 	}
 	
 	/**
@@ -106,15 +144,60 @@ public class BookStoreService {
 	 * @param amount 주문수량
 	 */
 	public void orderBook(int bookNo, int amount) {
+		if(loginedUser == null) {
+			throw new UserException("주문은 로그인 후 이용가능한 서비스 입니다.");
+		}
+		Book book = bookRepository.getBookByNo(bookNo);
+		if(book == null) {
+			throw new BookException("책번호가 올바르지 않습니다.");
+		}
+		if(book.getStock() < amount) {
+			throw new BookException("책 재고가 부족합니다.");
+		}
+		Order order = new Order(loginedUser.getId(), bookNo, amount);
+		orderRepository.insertOrder(order);
 		
+		book.setStock(book.getStock() - amount);
+		
+		loginedUser.setPoint(loginedUser.getPoint() + (int) (book.getDiscountPrice()*amount*0.01));
+		if(loginedUser.getPoint() >= 500000) {
+			loginedUser.setGrade("플레티넘");
+		} else if(loginedUser.getPoint() >= 1000000) {
+			loginedUser.setGrade("골드");
+		} else if(loginedUser.getPoint() >= 100000) {
+			loginedUser.setGrade("로얄");
+		} else {
+			loginedUser.setGrade("일반");
+		}
 	}
 	
 	/**
 	 * 로그인한 사용자의 주문정보를 반환한다.
 	 * @return 주문 목록
 	 */
-	public List<Order> getMyOrderList() {
-		return null;
+	public List<Map<String, Object>> getMyOrderList() {
+		if(loginedUser == null) {
+			throw new UserException("주문내역 조회는 로그인 후 이용가능한 서비스입니다.");
+		}
+		List<Map<String, Object>> myOrderHistory = new ArrayList<Map<String, Object>>();
+		List<Order> orders = orderRepository.getAllOrders();
+		
+		for(Order order : orders) {
+			if(order.getUserId().equals(loginedUser.getId())) {
+				Book book = bookRepository.getBookByNo(order.getBookNo());
+				Map<String, Object> item = new HashMap<>();
+				item.put("bookNo", book.getNo());
+				item.put("bookTitle", book.getTitle());
+				item.put("bookPrice", book.getPrice());
+				item.put("bookDiscountPrice", book.getDiscountPrice());
+				item.put("orderPrice", book.getDiscountPrice()*order.getAmount());
+				item.put("savedPoint", (int) (book.getDiscountPrice()*order.getAmount()*0.01));
+				
+				myOrderHistory.add(item);
+			}
+
+		}			
+		return myOrderHistory;
 	}
 	
 	/**
@@ -122,14 +205,19 @@ public class BookStoreService {
 	 * @return
 	 */
 	public User getMyInfo() {
-		return null;
+		if(loginedUser == null) {
+			throw new UserException("주문내역 조회는 로그인 후 이용가능한 서비스 입니다.");
+		}
+		return loginedUser;
 	}
 	
 	/**
 	 * 모든 정보를 저장한다.
 	 */
 	public void restore() {
-		
+		bookRepository.saveData();
+		userRepository.saveData();
+		orderRepository.saveData();
 	}
 }
 
